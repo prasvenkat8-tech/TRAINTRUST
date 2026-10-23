@@ -1,0 +1,89 @@
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- PROFILES TABLE
+CREATE TABLE profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    phone TEXT,
+    preferred_language VARCHAR(10) DEFAULT 'en',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- TRAINS TABLE
+CREATE TABLE trains (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    train_number VARCHAR(10) UNIQUE NOT NULL,
+    train_name TEXT NOT NULL,
+    origin_station_code VARCHAR(10) NOT NULL,
+    origin_station_name TEXT NOT NULL,
+    destination_station_code VARCHAR(10) NOT NULL,
+    destination_station_name TEXT NOT NULL,
+    departure_time TIME NOT NULL,
+    arrival_time TIME NOT NULL,
+    duration_minutes INT NOT NULL,
+    runs_on VARCHAR(50) NOT NULL,
+    available_classes TEXT[] NOT NULL,
+    data_source_label TEXT DEFAULT 'Demonstration Dataset (Sample Data)',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- TRAIN FACILITIES TABLE
+CREATE TABLE train_facilities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    train_id UUID REFERENCES trains(id) ON DELETE CASCADE,
+    has_pantry BOOLEAN DEFAULT FALSE,
+    has_e_catering BOOLEAN DEFAULT TRUE,
+    has_charging_points BOOLEAN DEFAULT TRUE,
+    has_bio_toilets BOOLEAN DEFAULT TRUE,
+    has_wifi BOOLEAN DEFAULT FALSE,
+    accessibility_rating NUMERIC(2,1) DEFAULT 3.5,
+    verified_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- REVIEWS TABLE
+CREATE TABLE reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    train_id UUID REFERENCES trains(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    cleanliness_rating INT CHECK (cleanliness_rating BETWEEN 1 AND 5),
+    washroom_rating INT CHECK (washroom_rating BETWEEN 1 AND 5),
+    comfort_rating INT CHECK (comfort_rating BETWEEN 1 AND 5),
+    food_rating INT CHECK (food_rating BETWEEN 1 AND 5),
+    staff_rating INT CHECK (staff_rating BETWEEN 1 AND 5),
+    written_feedback TEXT,
+    journey_date DATE NOT NULL,
+    is_verified_journey BOOLEAN DEFAULT FALSE,
+    is_flagged BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PASSENGER REPORTS TABLE
+CREATE TABLE passenger_reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    category TEXT NOT NULL,
+    train_number VARCHAR(10),
+    coach_berth TEXT,
+    description TEXT NOT NULL,
+    approximate_location TEXT,
+    attachment_storage_path TEXT,
+    ai_category TEXT,
+    ai_priority TEXT DEFAULT 'Standard',
+    ai_summary TEXT,
+    ai_recommended_next_step TEXT,
+    current_status TEXT DEFAULT 'Submitted',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ROW LEVEL SECURITY (RLS)
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own profile" ON profiles FOR ALL USING (auth.uid() = id);
+
+ALTER TABLE trains ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public trains read access" ON trains FOR SELECT USING (true);
+
+ALTER TABLE passenger_reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own reports" ON passenger_reports FOR ALL USING (auth.uid() = user_id);
